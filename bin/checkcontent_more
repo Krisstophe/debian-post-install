@@ -1,0 +1,40 @@
+#!/bin/sh
+
+# 希望从当前目录下所有的txt文件中提取中间几行的内容
+#     文档开头和结尾可能内容稍微特殊，中间的内容更为一般；
+#     这个命令可用于快速判断文件内容，比如是否目录下的文本均为数字串
+
+# 刚开始写了下面两个命令，都不能正常运行
+# find . -iname "*.txt" -exec head -10000 {} | tail -10 >> x01.lg \;
+# find . -iname "*.txt" -exec head -10000 {} | tail -10 \;
+# find . -iname "*.txt" -printf "head -10000 '%p' | tail -20 >> x01.log\n" -exec {} \;
+
+# 最后分解执行
+# 1. 针对每个文件生成一句命令脚本
+#	head -10 './84.TXT' >> x01.log
+#	head -1000 './84.TXT' | tail -3 >> x01.log
+#	head -100000 './84.TXT' | tail -3 >> x01.log
+#	tail -10 './84.TXT' >> x01.log
+# 2. 运行临时脚本./tmp.sh
+# 3. 删除临时脚本
+
+ccfile=checkcontent.log
+tmpfile=tmp_0873223.sh
+
+find . -iregex "^.*\.\(txt\|sql\|htm\|html\)$" \
+	-printf "
+echo \"In [%p]:\" | tee -a $ccfile
+echo \"---100---\" | tee -a $ccfile
+head -100 '%p' | tee -a $ccfile
+echo \"---1000---\" | tee -a $ccfile
+head -1000 '%p' | tail -100 | tee -a $ccfile
+echo \"---100000---\" | tee -a $ccfile
+head -100000 '%p' | tail -100 | tee -a $ccfile
+echo \"---tail 100---\" | tee -a $ccfile
+tail -100 '%p' | tee -a $ccfile
+printf \"\\\n\\\n\\\n\" | tee -a $ccfile\n\n" \
+	> $tmpfile
+./$tmpfile
+rm $tmpfile
+echo Press ENTER to exit
+read

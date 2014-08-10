@@ -1,0 +1,48 @@
+
+# ------------------------------
+# FOR CYGWIN AND LINUX
+# ------------------------------
+
+PS1='${debian_chroot:+($debian_chroot)}\[\033[01;31m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+
+# history
+export HISTSIZE=100000
+export HISTFILESIZE=1000000
+export HISTTIMEFORMAT="%Y-%m-%d %H:%M:%S "
+export HISTCONTROL=ignorespace  # record duplicate, ignore space started
+
+shopt -s histappend
+shopt -s nocaseglob     # 自动补全不区分大小写
+
+# most used commands
+alias rm='rm -i'
+alias cp='cp -i'
+alias mv='mv -i'
+
+alias df='df -h'
+alias du='du -b'
+alias du1='du -b --max-depth=1'
+
+alias less='less -r'
+alias whence='type -a'
+alias grep='grep --color'
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias info='info --vi-keys'
+
+lscmd=`which ls`' --color=tty --time-style=long-iso --group-directories-first --block-size=1'
+alias ls=$lscmd' -hF'
+alias lls=$lscmd' -hFl'
+alias l=$lscmd' -AFv'
+alias ll=$lscmd' -al -AFv'
+alias lll='ll | less'                         #
+alias llg='ll | grep'                         #
+
+alias tree='tree -F --dirsfirst'
+alias xo='xdg-open'
+alias addldconfig='sudo bash -c "pwd >> /etc/ld.so.conf" ; sudo ldconfig'
+
+PATH=.:$HOME/bin:/usr/games:$PATH
+
+export PYTHONPATH=.:$PYTHONPATH
+export PYTHONSTARTUP=~/.pythonstartup

@@ -1,0 +1,841 @@
+#!/usr/bin/env bash
+
+# apt-cyg: install tool for cygwin similar to debian apt-get
+
+# The MIT License (MIT)
+# 
+# Copyright (c) 2013 Trans-code Design
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+# 
+
+TRUSTEDKEYS=( CYGWIN CYGWINPORTS );
+# ./cygwin.pub
+# ------------
+# pub   1024D/676041BA 2008-06-13
+# uid                  Cygwin <cygwin@cygwin.com>
+# sub   1024g/A1DB7B5C 2008-06-13
+TRUSTEDKEY_CYGWIN_MD5="8fe5366fc82289578ab9b6e3c9f1bff9"
+TRUSTEDKEY_CYGWIN_FPR="1169DF9F22734F743AA59232A9A262FF676041BA"
+TRUSTEDKEY_CYGWIN_URL="https://sourceware.org/cgi-bin/cvsweb.cgi/~checkout~/setup/cygwin.pub?rev=2.1&cvsroot=cygwin-apps"
+TRUSTEDKEY_CYGWIN_URL_LATEST="https://sourceware.org/cgi-bin/cvsweb.cgi/~checkout~/setup/cygwin.pub?cvsroot=cygwin-apps"
+# ./ports.gpg
+# -----------
+# pub   1024D/66EE1F94 2008-10-27
+# uid                  Yaakov Selkowitz (Cygwin Ports) <yselkowitz@users.sourceforge.net>
+# sub   4096g/7D66B0D2 2008-10-27
+TRUSTEDKEY_CYGWINPORTS_MD5="4c7904807340411f48f7519173cd600d"
+TRUSTEDKEY_CYGWINPORTS_FPR="45600BB98CA878AA97A70119FF20AF9A66EE1F94"
+TRUSTEDKEY_CYGWINPORTS_URL_LATEST="http://cygwinports.org/ports.gpg"
+
+# this script requires some packages
+
+WGET="$( which wget 2>/dev/null )"
+TAR="$(  which tar  2>/dev/null )"
+GAWK="$( which awk  2>/dev/null )"
+GPGV="$( which gpgv 2>/dev/null )"
+GPG="$(  which gpg  2>/dev/null )"
+if [ -z "$WGET" -o -z "$TAR" -o -z "$GAWK" ]; then
+  echo You must install wget, tar and gawk to use apt-cyg.
+  exit 1
+fi
+
+function usage()
+{
+  echo apt-cyg: Installs and removes Cygwin packages.
+  echo "  \"apt-cyg install <package names>\" to install packages"
+  echo "  \"apt-cyg remove <package names>\" to remove packages"
+  echo "  \"apt-cyg update\" to update setup.ini"
+  echo "  \"apt-cyg show\" to show installed packages"
+  echo "  \"apt-cyg find <patterns>\" to find packages matching patterns"
+  echo "  \"apt-cyg describe <patterns>\" to describe packages matching patterns"
+  echo "  \"apt-cyg packageof <commands or files>\" to locate parent packages"
+  echo "  \"apt-cyg pathof <cache|mirror|mirrordir|cache/mirrordir|setup.ini>\""
+  echo "                                                          to show path"
+  echo "  \"apt-cyg key-add <files> ...\" to add keys contained in <files>"
+  echo "  \"apt-cyg key-del <keyids> ...\" to remove keys <keyids>"
+  echo "  \"apt-cyg key-list\" to list keys"
+  echo "  \"apt-cyg key-finger\" to list fingerprints"
+  echo "  \"apt-cyg upgrade-self\" to upgrade apt-cyg"
+  echo "Options:"
+  echo "  --charch <arch>          : change archetecture"
+  echo "  --use-setuprc            : set cache and mirror with /etc/setup/setup.rc"
+  echo "  --ignore-case, -i        : ignore case distinctions for <patterns>"
+  echo "  --force-remove           : force remove"
+  echo "  --force-fetch-trustedkeys: force fetch trustedkeys"
+  echo "  --no-verify, -X          : Don't verify setup.ini signatures"
+  echo "  --no-check-certificate   : Don't validate the server's certificate"
+  echo "  --mirror, -m <url>       : set mirror"
+  echo "  --cache, -c <dir>        : set cache"
+  echo "  --file, -f <file>        : read package names from file"
+  echo "  --noupdate, -u           : don't update setup.ini from mirror"
+  echo "  --ipv4, -4               : wget prefer ipv4"
+  echo "  --help"
+  echo "  --version"
+}
+
+
+
+function version()
+{
+  echo "apt-cyg version 0.57"
+  echo "Written by Stephen Jungels"
+  echo ""
+  echo "Copyright (c) 2005-9 Stephen Jungels.  Released under the GPL."
+}
+
+function current_cygarch ()
+{
+  arch | sed -e 's/^i686$/x86/g'
+}
+
+function mirror_to_mirrordir ()
+{
+  echo "$1" | sed -e "s/:/%3a/g" -e "s:/:%2f:g"
+}
+
+function findworkspace()
+{
+  # default working directory, mirror and architecture
+
+  mirror=ftp://mirror.mcs.anl.gov/pub/cygwin
+  mirror=http://mirrors.ustc.edu.cn/cygwin/
+  arch="$(current_cygarch)"
+  cache=/setup
+  cache=/e/BakSetup/Development/cygwin
+  
+  # work wherever setup worked last, if possible
+  
+  if [ -e /etc/setup/last-cache ]; then
+    cache="$(cygpath -au "$(head -1 /etc/setup/last-cache)")"
+  fi
+  cache="${cache%/}"
+  
+  if [ -e /etc/setup/last-mirror ]; then
+    mirror="$(head -1 /etc/setup/last-mirror)"
+  fi
+  mirror="${mirror%/}"
+  mirrordir="$(mirror_to_mirrordir "$mirror/")"
+  
+  echo Working directory is $cache
+  echo Mirror is $mirror
+  mkdir -p "$cache/$mirrordir/$arch"
+  cd "$cache/$mirrordir/$arch"
+  
+  init_gnupg
+  fetch_trustedkeys
+}
+
+function download_and_varify ()
+{
+  "${WGET[@]}" -N "$1" || return 1
+  [ -e "${1##*/}" ] || return 1
+  if [ -z "$no_verify" ]; then
+    "${WGET[@]}" -N "${1}.sig" || return 1
+    [ -e "${1##*/}.sig" ] && verify_signatures "${1##*/}.sig" || { rm -f "${1##*/}" "${1##*/}.sig"; return 1; }
+  fi
+  return
+}
+
+function files_backup ()
+{
+  locale file
+  for file; do
+    [ -e "${file}~" ] && mv    "${file}~" "${file}"
+    [ -e "${file}"  ] && cp -a "${file}"  "${file}~"
+  done
+}
+
+function files_restore ()
+{
+  locale file
+  for file; do
+    [ -e "${file}"  ] && rm    "${file}"
+    [ -e "${file}~" ] && mv    "${file}~" "${file}"
+  done
+}
+
+function files_backup_clean ()
+{
+  locale file
+  for file; do
+    [ -e "${file}~" ] && rm    "${file}~"
+  done
+}
+
+function setupini_download ()
+{
+  local BASEDIR="$cache/$mirrordir/$arch"
+  mkdir -p "$BASEDIR" || { echo -e "\e[31;1mError:\e[30;0m mkdir \"$BASEDIR\" failed."; exit 1; }
+  
+  [ $noscripts -ne 0 -o $noupdate -ne 0 ] && return
+  
+  pushd "$BASEDIR"
+  files_backup setup.ini setup.ini.sig setup.bz2 setup.bz2.sig
+  
+  while true; do
+    download_and_varify "$mirror/$arch/setup.bz2" && { bunzip2 -k setup.bz2 && mv setup setup.ini || rm -f setup.bz2; }
+    download_and_varify "$mirror/$arch/setup.ini" || break
+    
+    files_backup_clean setup.ini setup.ini.sig setup.bz2 setup.bz2.sig
+    popd
+    echo "Updated setup.ini"
+    return
+  done
+  files_restore setup.ini setup.ini.sig setup.bz2 setup.bz2.sig
+  popd
+  echo -e "\e[31;1mError:\e[30;0m updating setup.ini, reverting."
+  return 1
+}
+
+function getsetup ()
+{
+  setupini_download || return 1
+}
+
+function checkpackages()
+{
+  if [ $# -eq 0 ]; then
+    echo Nothing to do, exiting
+    exit 0
+  fi
+}
+
+# Usage: getrootdir arch
+function getrootdir ()
+{
+  case "$1" in
+    x86)
+      cygpath -u "$(< /proc/registry32/HKEY_LOCAL_MACHINE/SOFTWARE/Cygwin/setup/rootdir)" ;;
+    x86_64)
+      cygpath -u "$(< /proc/registry64/HKEY_LOCAL_MACHINE/SOFTWARE/Cygwin/setup/rootdir)" ;;
+    *)
+      echo -e "\e[31;1mError:\e[30;0m unknown arch $1" >&2 ;;
+  esac
+}
+
+# Usage: charch arch apt-cyg_parms ...
+function charch ()
+{
+  local rootdir
+  if [ "$(current_cygarch)" != "$1" ]; then
+    echo -e "\e[32;1mcharch to:\e[30;0m $1"
+    rootdir="$(getrootdir "$1")"
+    shift
+    chroot "$rootdir" "$rootdir/bin/bash" -lc \
+      'cd "$1"; shift ; "$0" "$@"' \
+      "$(which "$0" | xargs cygpath -aml | xargs cygpath -u)" \
+      "$(pwd        | xargs cygpath -aml | xargs cygpath -u)" \
+      "$@"
+    exit $?
+  fi
+}
+
+function init_gnupg ()
+{
+  [ -z "$GPG" ] && return
+  export GNUPGHOME="$cache/.apt-cyg"
+  if [ ! -d "$GNUPGHOME" ]; then
+    if ! { mkdir -p "$GNUPGHOME" && chmod 700 "$GNUPGHOME"; } then
+      echo -e "\e[31;1mError:\e[30;0m cannot initialize directory $GNUPGHOME"
+      exit 1
+    fi
+  fi
+  GPG_KEYRING=( --keyring pubring.gpg )
+}
+
+# Usage: ask_user "question?" (optional recognition of YES_TO_ALL=true auto yes)
+function ask_user ()
+{
+  while true; do
+    [ -n "$2" ] && { local pmt="$2"; local def=; }
+    [ -n "$2" ] || { local pmt="y/n";local def=; }
+    $YES_TO_ALL && { local RPY=Y;local def=Y; }
+    [ -z "$def" ] && { echo -ne "$1 ";read -p "[$pmt] " RPY; }
+    [ -z "$RPY" ] && { local RPY=$def; }
+    case "$RPY" in
+      Y*|y*) return 0 ;;
+      N*|n*) return 1 ;;
+         1*) return 0 ;;
+         2*) return 1 ;;
+    esac
+  done
+}
+
+# Usage: wget_return_case_md5sum returncode
+function wget_return_case_md5sum ()
+{
+  case "$1" in
+    1) echo "$LABEL: FAILED: Could not download $URL."; return 1 ;;
+    5) echo "$LABEL: WARNING: The SSL certificate is invalid $URL."
+       ask_user "Continue regardless of invalid SSL certificate?" || return 1
+       "${WGET[@]}" --no-check-certificate "$URL" -O "$FILE"
+       return 0
+    ;;
+    8) echo "$LABEL: FAILED: 404 Not Found $URL." return 1 ;;
+    0) return 0 ;;
+    *) echo -e "\e[31;1mError:\e[30;0m FATAL: wget returned unkown value"; return 1 ;;
+  esac
+}
+
+# Usage: wget_and_check_md5sum label hash url file
+function wget_and_check_md5sum ()
+{
+  local LABEL="$1"
+  local MD5="$2"
+  local URL="$3"
+  local FILE="$4"
+  "${WGET[@]}" "$URL" -O "$FILE"
+  wget_return_case_md5sum "$?" || return 1
+  if ! { echo "$MD5 *$FILE" | md5sum -c >& /dev/null; } then
+    echo "$LABEL: FAILED: MD5 hash is not match."
+    return 2
+  fi
+  echo "$LABEL: OK"
+}
+
+function fetch_trustedkeys ()
+{
+  [ -z "$GPG" ] && return
+  local i
+  local FILE="$(mktemp)"
+  local FILE_LATEST="$(mktemp)"
+  for i in "${TRUSTEDKEYS[@]}"; do
+    local LABEL="TRUSTEDKEY_${i}"
+    local MD5="$(eval echo "\$${LABEL}_MD5")"
+    local FPR="$(eval echo "\$${LABEL}_FPR")"
+    local URL="$(eval echo "\$${LABEL}_URL")"
+    local URL_LATEST="$(eval echo "\$${LABEL}_URL_LATEST")"
+    local CASE=""
+    if [ -z "$force_fetch_trustedkeys" ] && { "${GPG[@]}" --fingerprint --with-colons | grep -q "$FPR"; } then
+      continue
+    fi
+    if [ -n "$URL" ]; then
+      wget_and_check_md5sum "$LABEL" "$MD5" "$URL" "$FILE"
+      CASE+="$?"
+    else
+      CASE+="-"
+    fi
+    if [ -n "$URL_LATEST" ]; then
+      wget_and_check_md5sum "$LABEL" "$MD5" "$URL_LATEST" "$FILE_LATEST"
+      CASE+="$?"
+    else
+      CASE+="-"
+    fi
+    case "$CASE" in
+      00|01|0-)
+        "${GPG[@]}" --import "$FILE"
+      ;;
+      02)
+        echo "Warning: ${LABEL} has been updated."
+        "${GPG[@]}" --import "$FILE"
+      ;;
+      -0)
+        "${GPG[@]}" --import "$FILE_LATEST"
+      ;;
+      10|20)
+        echo -e "\e[31;1mError:\e[30;0m ${LABEL} has miss configuration."
+        exit 1
+      ;;
+      11|1-|-1)
+        echo -e "\e[31;1mError:\e[30;0m Could not download ${LABEL}."
+        exit 1
+      ;;
+      12|-2)
+        echo -e "\e[31;1mError:\e[30;0m ${LABEL} has been updated, maybe. But sometimes it may has been cracked. Be careful !!!"
+        exit 1
+      ;;
+      21|22|2-)
+        echo -e "\e[31;1mError:\e[30;0m ${LABEL} has been cracked, maybe"
+        exit 1
+      ;;
+      --)
+        echo -e "\e[31;1mError:\e[30;0m ${LABEL} has no URL."
+        exit 1
+      ;;
+    esac
+  done
+  rm "$FILE" "$FILE_LATEST"
+}
+
+# Usage: verify_signatures files ...
+function verify_signatures ()
+{
+  while [ $# -gt 0 ]; do
+    if ! "${GPGV[@]}" "${GPG_KEYRING[@]}" "$1"; then
+      echo -e "\e[31;1mError:\e[30;0m BAD signature: $1"
+      return 1
+    fi
+    shift
+  done
+}
+
+# Usage: apt-cyg-key-add pkey ...
+function apt-cyg-key-add ()
+{
+  [ -z "$GPG" ] && { echo -e "\e[31;1mError:\e[30;0m GnuPG is not installed. Prease install gnupg package"; exit 1; }
+  local pkeys
+  for pkey; do
+    pkeys+=( "$(cygpath -a "$pkey" )" )
+  done
+  findworkspace
+  for pkey in "${pkeys[@]}"; do
+    "${GPG[@]}" --import "$pkey"
+  done
+}
+
+# Usage: apt-cyg-key-add keyid ...
+function apt-cyg-key-del ()
+{
+  [ -z "$GPG" ] && { echo -e "\e[31;1mError:\e[30;0m GnuPG is not installed. Prease install gnupg package"; exit 1; }
+  local keyid
+  findworkspace
+  for keyid; do
+    "${GPG[@]}" --batch --yes --delete-key "$keyid"
+  done
+}
+
+function apt-cyg-key-list ()
+{
+  [ -z "$GPG" ] && { echo -e "\e[31;1mError:\e[30;0m GnuPG is not installed. Prease install gnupg package"; exit 1; }
+  findworkspace
+  "${GPG[@]}" --list-keys
+}
+
+function apt-cyg-key-finger ()
+{
+  [ -z "$GPG" ] && { echo -e "\e[31;1mError:\e[30;0m GnuPG is not installed. Prease install gnupg package"; exit 1; }
+  findworkspace
+  "${GPG[@]}" --fingerprint
+}
+
+function apt-cyg-pathof ()
+{
+  findworkspace >& /dev/null
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      cache)            echo "$cache" ;;
+      mirror)           echo "$mirror" ;;
+      mirrordir)        echo "$mirrordir" ;;
+      cache/mirrordir)  echo "$cache/$mirrordir" ;;
+      setup.ini)        echo "$cache/$mirrordir/$arch/setup.ini" ;;
+      *)
+        echo -e "\e[31;1mError:\e[30;0m in function $FUNCNAME: unknown parameter: $1"
+        exit 1
+    esac
+    shift
+  done
+}
+
+function apt-cyg-upgrade-self ()
+{
+  local basedir="$(dirname "$(readlink -f "$(which "$0")")")"
+  if [ ! -d "$basedir/.git" ]; then
+    echo -e "\e[31;1mError:\e[30;0m apt-get is not under the git version control."
+    exit 1
+  fi
+  pushd "$basedir"
+  git pull -v
+  popd
+}
+
+
+function apt-cyg-help ()
+{
+  usage
+}
+
+# process options
+
+noscripts=0
+noupdate=0
+OPT_FILES=()
+SUBCOMMAND=""
+ignore_case=""
+force_remove=""
+force_fetch_trustedkeys=""
+no_verify=""
+YES_TO_ALL=false
+INITIAL_ARGS=( "$@" )
+ARGS=()
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+
+    --charch)
+      charch "$2" "${INITIAL_ARGS[@]}"
+      shift ; shift
+    ;;
+
+    --use-setuprc)
+      "$0" -c "$(grep -A1 last-cache  /etc/setup/setup.rc | tail -n1 | sed -r 's/^\s*|\s*$//g')" > /dev/null
+      "$0" -m "$(grep -A1 last-mirror /etc/setup/setup.rc | tail -n1 | sed -r 's/^\s*|\s*$//g')" > /dev/null
+      shift
+    ;;
+
+    --ignore-case|-i)
+      ignore_case="$1"
+      shift
+    ;;
+
+    --force-remove)
+      force_remove=1
+      shift
+    ;;
+
+    --force-fetch-trustedkeys)
+      force_fetch_trustedkeys=1
+      shift
+    ;;
+
+    --no-verify|-X)
+      no_verify=1
+      shift
+    ;;
+
+    --no-check-certificate)
+      WGET+=( "--no-check-certificate" )
+      shift
+    ;;
+
+    --mirror|-m)
+      echo "${2%/}/" > /etc/setup/last-mirror
+      shift ; shift
+    ;;
+
+    --cache|-c)
+      cygpath -aw "$2" > /etc/setup/last-cache
+      shift ; shift
+    ;;
+
+    --noscripts)
+      noscripts=1
+      shift
+    ;;
+
+    --noupdate|-u)
+      noupdate=1
+      shift
+    ;;
+
+    --ipv4|-4)
+      WGET=( "${WGET[@]}" "--prefer-family=IPv4" )
+      shift
+    ;;
+
+    --help)
+      usage
+      exit 0
+    ;;
+
+    --version)
+      version
+      exit 0
+    ;;
+
+    --file|-f)
+      if [ -n "$2" ]; then
+        OPT_FILES+=( "$2" )
+        shift
+      else
+        echo 1>&2 No file name provided, ignoring $1
+      fi
+      shift
+    ;;
+
+    *)
+      if [ -z "$SUBCOMMAND" ]; then
+        SUBCOMMAND="$1"
+      else
+        ARGS+=( "$1" )
+      fi
+      shift
+
+    ;;
+
+  esac
+done
+
+if [ -z "$GPGV" -a -z "$no_verify" ]; then
+  echo -e "\e[31;1mError:\e[30;0m GnuPG is not installed. Prease install gnupg package or use -X option."
+  exit 1
+fi
+
+for file in "${OPT_FILES[@]}"; do
+  if [ -f "$file" ]; then
+    readarray -t -O ${#ARGS[@]} ARGS < "$file"
+  else
+    echo File $file not found, skipping
+  fi
+done
+
+
+
+function apt-cyg-update ()
+{
+
+    findworkspace
+    getsetup
+
+}
+
+
+function apt-cyg-show ()
+{
+
+    echo 1>&2 The following packages are installed:
+    awk '/[^ ]+ [^ ]+ 0/ {print $1}' /etc/setup/installed.db
+
+}
+
+
+function apt-cyg-find ()
+{
+    local pkg
+
+    checkpackages "$@"
+    findworkspace
+    getsetup
+
+    for pkg do
+      echo ""
+      echo "Searching for installed packages matching $pkg:"
+      awk '/[^ ]+ [^ ]+ 0/ {if ($1 ~ query) print $1}' query="$pkg" IGNORECASE="$ignore_case" /etc/setup/installed.db
+      echo ""
+      echo "Searching for installable packages matching $pkg:"
+      awk -v query="$pkg" -v IGNORECASE="$ignore_case" \
+        'BEGIN{RS="\n\n@ "; FS="\n"; ORS="\n"} {if ($1 ~ query) {print $1}}' \
+        setup.ini
+    done
+
+}
+
+
+function apt-cyg-describe ()
+{
+    local pkg
+
+    checkpackages "$@"
+    findworkspace
+    getsetup
+    for pkg do
+      echo ""
+      awk -v query="$pkg" -v IGNORECASE="$ignore_case" \
+        'BEGIN{RS="\n\n@ "; FS="\n"; ORS="\n"} {if ($1 ~ query) {print $0 "\n"}}' \
+        setup.ini
+    done
+
+}
+
+
+function apt-cyg-packageof ()
+{
+    local pkg
+    local manifest
+
+    checkpackages "$@"
+    for pkg do
+      local key="$(which "$pkg" 2>/dev/null | sed "s:^/::")"
+      if [ -z "$key" ]; then
+        key="$pkg"
+      fi
+      for manifest in /etc/setup/*.lst.gz; do
+        local found="$(gzip -cd "$manifest" | grep -c "$key")"
+        if [ $found -gt 0 ]; then
+          local package="$(echo $manifest | sed -e "s:/etc/setup/::" -e "s/.lst.gz//")"
+          echo Found $key in the package $package
+        fi
+      done
+    done
+
+}
+
+
+function apt-cyg-install ()
+{
+    local pkg
+    local script
+
+    checkpackages "$@"
+    findworkspace
+    getsetup
+
+    for pkg do
+
+    local already="$(grep -c "^$pkg " /etc/setup/installed.db)"
+    if [ $already -ge 1 ]; then
+      echo Package $pkg is already installed, skipping
+      continue
+    fi
+    echo ""
+    echo Installing $pkg
+
+    # look for package and save desc file
+
+    mkdir -p "release/$pkg"
+    awk > "release/$pkg/desc" -v package="$pkg" \
+      'BEGIN{RS="\n\n@ "; FS="\n"} {if ($1 == package) {desc = $0; px++}} \
+       END {if (px == 1 && desc != "") print desc; else print "Package not found"}' \
+       setup.ini
+    local desc="$(< "release/$pkg/desc")"
+    if [ "$desc" = "Package not found" ]; then
+      echo Package $pkg not found or ambiguous name, exiting
+      rm -r "release/$pkg"
+      exit 1
+    fi
+    echo Found package $pkg
+
+    # download and unpack the bz2 file
+
+    # pick the latest version, which comes first
+    local install="$(awk '/^install: / { print $2; exit }' "release/$pkg/desc")"
+
+    if [ -z "$install" ]; then
+      echo "Could not find \"install\" in package description: obsolete package?"
+      exit 1
+    fi
+
+    local file="$(basename "$install")"
+    cd "release/$pkg"
+    "${WGET[@]}" -nc $mirror/$install
+    
+    # check the md5
+    local digest="$(awk '/^install: / { print $4; exit }' "desc")"
+    local digactual="$(md5sum $file | awk '{print $1}')"
+    if [ "$digest" != "$digactual" ]; then
+      echo MD5 sum did not match, exiting
+      exit 1
+    fi
+    
+    echo "Unpacking..."
+    tar > "/etc/setup/$pkg.lst" xvf "$file" -C /
+    gzip -f "/etc/setup/$pkg.lst"
+    cd ../..
+    
+    
+    # update the package database
+    
+    awk > /tmp/awk.$$ -v pkg="$pkg" -v bz=$file \
+      '{if (ins != 1 && pkg < $1) {print pkg " " bz " 0"; ins=1}; print $0} \
+      END{if (ins != 1) print pkg " " bz " 0"}' \
+      /etc/setup/installed.db
+    mv /etc/setup/installed.db /etc/setup/installed.db-save
+    mv /tmp/awk.$$ /etc/setup/installed.db
+    
+    
+    # recursively install required packages
+    
+    local requires="$(grep "^requires: " "release/$pkg/desc" | sed -re 's/^requires: *(.*[^ ]) */\1/g' -e 's/ +/ /g')"
+    
+    local warn=0
+    if [ -n "$requires" ]; then
+      echo Package $pkg requires the following packages, installing:
+      echo $requires
+      for package in $requires; do
+        local already="$(grep -c "^$package " /etc/setup/installed.db)"
+        if [ $already -ge 1 ]; then
+          echo Package $package is already installed, skipping
+          continue
+        fi
+        apt-cyg --noscripts install $package
+        if [ $? -ne 0 ]; then warn=1; fi
+      done
+    fi
+    if [ $warn -ne 0 ]; then
+      echo "Warning: some required packages did not install, continuing"
+    fi
+    
+    # run all postinstall scripts
+    
+    local pis="$(ls /etc/postinstall/*.sh 2>/dev/null | wc -l)"
+    if [ $pis -gt 0 -a $noscripts -ne 1 ]; then
+      echo Running postinstall scripts
+      for script in /etc/postinstall/*.sh; do
+        $script
+        mv $script $script.done
+      done
+    fi
+    
+    echo Package $pkg installed
+
+    done
+
+}
+
+
+function apt-cyg-remove()
+{
+    local pkg
+    local req
+
+    checkpackages "$@"
+    for pkg do
+
+    local already="$(grep -c "^$pkg " /etc/setup/installed.db)"
+    if [ $already -eq 0 ]; then
+      echo Package $pkg is not installed, skipping
+      continue
+    fi
+
+    local dontremove="cygwin coreutils gawk bzip2 tar xz wget bash"
+    for req in $dontremove; do
+      if [ "$pkg" = "$req" ]; then
+        echo apt-cyg cannot remove package $pkg, exiting
+        exit 1
+      fi
+    done
+
+    if [ ! -e "/etc/setup/$pkg.lst.gz" -a -z "$force_remove" ]; then
+      echo Package manifest missing, cannot remove $pkg.  Exiting
+      exit 1
+    fi
+    echo Removing $pkg
+
+    # run preremove scripts
+
+    if [ -e "/etc/preremove/$pkg.sh" ]; then
+      "/etc/preremove/$pkg.sh"
+    fi
+
+    gzip -cd "/etc/setup/$pkg.lst.gz" | awk '/[^\/]$/ {print "rm -f \"/" $0 "\""}' | sh
+    awk > /tmp/awk.$$ -v pkg="$pkg" '{if (pkg != $1) print $0}' /etc/setup/installed.db
+    rm -f "/etc/postinstall/$pkg.sh.done" "/etc/preremove/$pkg.sh" "/etc/setup/$pkg.lst.gz"
+    mv /etc/setup/installed.db /etc/setup/installed.db-save
+    mv /tmp/awk.$$ /etc/setup/installed.db
+    echo Package $pkg removed
+
+    done
+
+}
+
+function invoke_subcommand ()
+{
+    local SUBCOMMAND="${@:1:1}"
+    local ARGS=( "${@:2}" )
+    local ACTION="apt-cyg-${SUBCOMMAND:-help}"
+    if type "$ACTION" >& /dev/null; then
+      "$ACTION" "${ARGS[@]}"
+    else
+      echo -e "\e[31;1mError:\e[30;0m unknown subcommand: $SUBCOMMAND"
+      exit 1
+    fi
+}
+
+invoke_subcommand "$SUBCOMMAND" "${ARGS[@]}"
+
