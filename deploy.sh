@@ -7,14 +7,15 @@ themv=`which mv`
 # update & install
 
 apt-get -y update
-apt-get -y upgrade
 apt-get -y dist-upgrade
+apt-get -y upgrade
 apt-get -y install vim ctags cscope ascii vim lynx pptpd tmux p7zip-full tree netselect emacs gawk lynx nmap
 apt-get -y install build-essential autoconf automake gdb dump strace libtool
 apt-get -y install python3 python3-pip python-pip
 apt-get -y install binutils-doc vim-doc
-apt-get -y upgrade
-apt-get -y dist-upgrade
+apt-get -y install aria2 tor
+
+mv /etc/rc2.d/S02tor  /etc/rc2.d/K02tor  # start tor manually by "service tor start"
 
 ######################
 # modify configuration
