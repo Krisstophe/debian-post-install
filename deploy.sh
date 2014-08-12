@@ -21,7 +21,7 @@ mv /etc/rc2.d/S02tor  /etc/rc2.d/K02tor  # start tor manually by "service tor st
 # modify configuration
 
 # update pptpd password to .sed rule
-echo input the password for pptpd service:
+echo -e "\ninput the password for pptpd service:"
 read pptpdpwd
 sed "s/\(.*\)<changepassword>\(.*\)/\1$pptpdpwd\2/" ./sed/chap-secrets.sed > ./sed/chap-secrets.sed2
 $themv ./sed/chap-secrets.sed2 ./sed/chap-secrets.sed
@@ -43,9 +43,15 @@ configfiles=(
 ~/.bashrc
 )
 for conffile in ${configfiles[@]}; do
-    $themv -f $conffile $conffile.bak
-    fileshortname=`expr $conffile : '.*\/\(.*\)'` # 获得短文件名
-    sed -f ./sed/$fileshortname.sed $conffile.bak > $confile
+    if [ -f $conffile ]
+    then
+        $themv -f $conffile $conffile.bak
+        fileshortname=`expr $conffile : '.*\/\(.*\)'` # 获得短文件名
+        sed -f ./sed/$fileshortname.sed $conffile.bak > $conffile
+    else
+        echo WARNING - file not found : $conffile
+    fi
+
 done
 
 sysctl -p
@@ -61,4 +67,7 @@ $thecp -r -f .bashalias .gitconfig .pythonstartup .tmux.conf .toprc .vimrc .wget
 # import ssh public key
 cat ./id_dsa.pub >> ~/.ssh/authorized_keys
 cat ./id_rsa.pub >> ~/.ssh/authorized_keys
+
+echo -e "\nrestart now?"
+read restartnow
 
