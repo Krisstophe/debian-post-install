@@ -15,8 +15,6 @@ apt-get -y install python3 python3-pip python-pip
 apt-get -y install binutils-doc vim-doc
 apt-get -y install aria2 tor vbindiff nload
 
-mv /etc/rc2.d/S02tor  /etc/rc2.d/K02tor  # start tor manually by "service tor start"
-
 ######################
 # modify configuration
 
