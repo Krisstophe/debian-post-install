@@ -13,7 +13,7 @@ apt-get -y install vim ctags cscope ascii vim lynx pptpd tmux p7zip-full tree ne
 apt-get -y install build-essential autoconf automake gdb dump strace libtool
 apt-get -y install python3 python3-pip python-pip
 apt-get -y install binutils-doc vim-doc
-apt-get -y install aria2 tor
+apt-get -y install aria2 tor vbindiff nload
 
 mv /etc/rc2.d/S02tor  /etc/rc2.d/K02tor  # start tor manually by "service tor start"
 
@@ -38,6 +38,8 @@ configfiles=(
 /etc/ppp/pptpd-options
 /etc/ppp/chap-secrets
 /etc/network/interfaces
+/etc/torsocks.conf
+/etc/tor/torrc
 ~/.bashrc
 )
 for conffile in ${configfiles[@]}; do
@@ -49,6 +51,7 @@ done
 sysctl -p
 service ssh restart
 service pptpd restart
+service tor restart
 
 ######################
 # copy initial environment files
