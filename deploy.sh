@@ -48,10 +48,10 @@ for conffile in ${configfiles[@]}; do
         $themv -f $conffile $conffile.bak
         fileshortname=`expr $conffile : '.*\/\(.*\)'` # 获得短文件名
         sed -f ./sed/$fileshortname.sed $conffile.bak > $conffile
+        echo CONFIGURED - $conffile
     else
         echo WARNING - file not found : $conffile
     fi
-
 done
 
 sysctl -p
@@ -68,6 +68,10 @@ $thecp -r -f .bashalias .gitconfig .pythonstartup .tmux.conf .toprc .vimrc .wget
 cat ./id_dsa.pub >> ~/.ssh/authorized_keys
 cat ./id_rsa.pub >> ~/.ssh/authorized_keys
 
-echo -e "\nrestart now?"
+echo -e "\nRestart now?(y/N)"
 read restartnow
+if [ $restartnow = 'y' ] || [ $restartnow = 'Y' ]
+then
+    shutdown -r now
+fi
 
