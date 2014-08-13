@@ -5,7 +5,7 @@ My debian post-install environment configuration
 
 ## Debian自动配置脚本 ##
 
-自动配置pptpd, ssh, tor服务。
+自动配置pptpd, ssh, tor服务，及vim+plugin, tmux(C-a)等环境。详见`./deploy.sh`
 
  经 本地环境 和 [digitalocean.com] VPS 测试，@ Debian 7.5 x64
 [digitalocean.com]: https://www.digitalocean.com/?refcode=d9cb66674669
