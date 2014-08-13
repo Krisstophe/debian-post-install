@@ -3,6 +3,30 @@
 thecp=`which cp`
 themv=`which mv`
 
+
+######################
+# update .sed rule
+# pptpd service: username / password
+# tor service  : port
+
+echo -e "Make sure you have replaced the ssh public key file with your own.\n"
+echo -e "Input the username for **pptpd** service:"
+read pptpdusr
+echo -e "Input the password for **pptpd** service:"
+read pptpdpwd
+sed "s/\(.*\)PPTPD_USERNAME\(.*\)/\1$pptpdusr\2/" ./sed/chap-secrets.sed.template | \
+    sed "s/\(.*\)PPTPD_PASSWORD\(.*\)/\1$pptpdpwd\2/" - > \
+    ./sed/chap-secrets.sed
+
+echo -e "Input the port for **tor** service:"
+read torport
+sed "s/\(.*\)TOR_PORT\(.*\)/\1$torport\2/" ./sed/torrc.sed.template > ./sed/torrc.sed
+sed "s/\(.*\)TOR_PORT\(.*\)/\1$torport\2/" ./sed/torsocks.conf.sed.template > ./sed/torsocks.conf.sed
+
+echo -e "Ctrl-C to cancel, or press any key to install."
+read
+
+
 ######################
 # update & install
 
@@ -17,12 +41,6 @@ apt-get -y install aria2 tor vbindiff nload
 
 ######################
 # modify configuration
-
-# update pptpd password to .sed rule
-echo -e "\ninput the password for pptpd service:"
-read pptpdpwd
-sed "s/\(.*\)<changepassword>\(.*\)/\1$pptpdpwd\2/" ./sed/chap-secrets.sed > ./sed/chap-secrets.sed2
-$themv ./sed/chap-secrets.sed2 ./sed/chap-secrets.sed
 
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 iptables-save > /etc/iptables-rules
