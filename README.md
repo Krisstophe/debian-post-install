@@ -10,7 +10,7 @@ My debian post-install environment configuration
  经 本地环境 和 [digitalocean.com] VPS 测试，@ Debian 7.5 x64
 [digitalocean.com]: https://www.digitalocean.com/?refcode=d9cb66674669
 
-> - PROMO CODE: `ALLSSD10` $10 可试用两月, 亲测可用。
+> - PROMO CODE: `ALLSSD10` $10 可试用两月, 亲测可用(2014-08)。
 
 新建debian系统后，以root登录，首先更新ssh登录所需public key文件(id_dsa.pub, id_rsa.pub)。不了解ssh key请自行google`ssh 无密码登录`，或删除`*.pub`文件，每次用密码登录。
 
