@@ -13,8 +13,6 @@ $thecp -f ~/.vimrc ./
 $thecp -f ~/.toprc ./
 $thecp -f ~/.tmux.conf ./
 $thecp -f ~/.pythonstartup ./
-$thecp -f ~/.wgetrc ./
-$thecp -r -f ~/bin -t ./
 
 $thecp -f ~/.ssh/id_rsa.pub ./
 $thecp -f ~/.ssh/id_dsa.pub ./
@@ -31,4 +29,6 @@ $therm -rf ./.vim/.netrwhist
 # $thecp -f ~/.minttyrc ./
 # $thecp -f ~/.inputrc ./
 # $thecp -f ~/.bashaliascyg ./
+# $thecp -f ~/.wgetrc ./
+# $thecp -r -f ~/bin -t ./
 

@@ -23,7 +23,7 @@ atexit.register(readline.write_history_file, histfile)
 del os, histfile, readline, rlcompleter
 
 # 自定义的库函数
-import sys
-if sys.version[0] == '2':
-    from zhazhalib import *
-del sys
+# import sys
+# if sys.version[0] == '2':
+#     from zhazhalib import *
+# del sys

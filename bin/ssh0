@@ -1,9 +1,0 @@
-#!/bin/sh
-
-if [[ (("$#" -ge "1")) && (("$1" -ge "0")) && (( "$1" -le "255")) ]]
-then
-	ssh root@192.168.75.$1
-else
-	echo "Usage: $0 x          # ssh root@192.168.75.x"
-	exit 1
-fi
