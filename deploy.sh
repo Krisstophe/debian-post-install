@@ -78,16 +78,11 @@ service tor restart
 ######################
 # copy initial environment files
 
-$thecp -r -f .bashalias .gitconfig .pythonstartup .tmux.conf .toprc .vimrc .wgetrc .vim bin -t ~/
+$thecp -r -f .bashalias .gitconfig .pythonstartup .tmux.conf .toprc .vimrc .vim -t ~/
 
 # import ssh public key
 cat ./id_dsa.pub >> ~/.ssh/authorized_keys
 cat ./id_rsa.pub >> ~/.ssh/authorized_keys
 
-echo -e "\nRestart now?(y/N)"
-read restartnow
-if [ $restartnow = 'y' ] || [ $restartnow = 'Y' ]
-then
-    shutdown -r now
-fi
+echo -e "Now everything is ok!\nEnjoy"
 
