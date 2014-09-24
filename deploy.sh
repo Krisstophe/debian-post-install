@@ -10,16 +10,30 @@ themv=`which mv`
 # tor service  : port
 
 echo -e "Make sure you have replaced the ssh public key file with your own.\n"
-echo -e "Input the username for **pptpd** service:"
+
+# read pptpd username, default "zhazha"
+echo -e "Input the username for **pptpd** service:[zhazha]"
 read pptpdusr
+if [ "$pptpdusr" == "" ]
+then
+    pptpdusr="zhazha"
+fi
+
+# read pptpd password
 echo -e "Input the password for **pptpd** service:"
 read pptpdpwd
+
 sed "s/\(.*\)PPTPD_USERNAME\(.*\)/\1$pptpdusr\2/" ./sed/chap-secrets.sed.template | \
     sed "s/\(.*\)PPTPD_PASSWORD\(.*\)/\1$pptpdpwd\2/" - > \
     ./sed/chap-secrets.sed
 
-echo -e "Input the port for **tor** service:"
+# read tor service port, default 1999
+echo -e "Input the port for **tor** service:[1999]"
 read torport
+if [ "$torport" == "" ]
+then
+    torport="1999"
+fi
 sed "s/\(.*\)TOR_PORT\(.*\)/\1$torport\2/" ./sed/torrc.sed.template > ./sed/torrc.sed
 sed "s/\(.*\)TOR_PORT\(.*\)/\1$torport\2/" ./sed/torsocks.conf.sed.template > ./sed/torsocks.conf.sed
 

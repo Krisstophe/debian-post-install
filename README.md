@@ -20,7 +20,7 @@ My debian post-install environment configuration
 >
 > tor服务之端口号
 
-sshd默认增加`22222`/`22223`/`22224`等PORT，以防意外。见`./sed/sshd_config.sed`
+sshd默认增加`22222`/`22225`等PORT，以防端口失效；并设置"ClientAliveInterval 86400"。见`./sed/sshd_config.sed`
 
 ```
 apt-get -y install git sed iptables
